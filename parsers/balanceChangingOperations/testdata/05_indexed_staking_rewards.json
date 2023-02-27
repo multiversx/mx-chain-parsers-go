@@ -1,0 +1,17 @@
+{
+    "txHash": "5c23b07a4bcbb918793445edbfbb7125bd10fb9533253bfc4fa14628967abf9c",
+    "gasLimit": 0,
+    "gasPrice": 0,
+    "gasUsed": 0,
+    "miniBlockHash": "1a92f15854c7803f98f7f1a83ad16dc78a419927335cd3383c6894ebb07d4494",
+    "nonce": 0,
+    "receiver": "erd1q9xj4uqrfy9ge6n7lefn24qfa78pqd9q5dlc2fj8yv79smtdf9qqcglc34",
+    "receiverShard": 0,
+    "round": 879134,
+    "sender": "4294967295",
+    "senderShard": 4294967295,
+    "status": "success",
+    "value": "881753727163764749",
+    "timestamp": 1677518022,
+    "price": 40.87
+}
