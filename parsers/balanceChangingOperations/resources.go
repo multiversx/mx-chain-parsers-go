@@ -2,6 +2,7 @@ package balanceChangingOperations
 
 type IndexedTransactionBundle struct {
 	Hash               string              `json:"txHash"`
+	Type               string              `json:"type"`
 	Sender             string              `json:"sender"`
 	SenderShard        uint32              `json:"senderShard"`
 	Receiver           string              `json:"receiver"`
@@ -20,57 +21,94 @@ type TransactionReceipt struct {
 }
 
 type Operation struct {
-	Identifier     string                 `json:"identifier"`
 	Status         OperationStatus        `json:"status"`
 	Type           OperationType          `json:"type"`
 	Subtype        OperationSubtype       `json:"subtype,omitempty"`
 	Address        string                 `json:"address"`
 	AmountValue    string                 `json:"amountValue"`
-	AmountCurrency string                 `json:"amountCurrency"`
+	AmountType     AmountType             `json:"amountType"`
+	AmountCurrency string                 `json:"amountCurrency,omitempty"`
 	AmountMetadata map[string]interface{} `json:"metadata,omitempty"`
+	Direction      OperationDirection     `json:"direction"`
 }
 
-type OperationStatus int
+type OperationStatus string
 
 const (
-	OperationStatusSuccess OperationStatus = iota
-	OperationStatusFailure
-	OperationStatusPending
+	OperationStatusSuccess OperationStatus = "success"
+	OperationStatusFailure                 = "failure"
+	OperationStatusPending                 = "pending"
 )
 
-type OperationType int
-type OperationSubtype int
+func (operationStatus OperationStatus) String() string {
+	return string(operationStatus)
+}
+
+type OperationType string
+type OperationSubtype string
 
 const (
-	OperationTypeTransfer OperationType = iota
-	OperationTypeFee
-	OperationTypeFeeRefund
-	OperationTypeFeeReward
-	OperationTypeTokenManagement
+	OperationTypeTransfer        OperationType = "transfer"
+	OperationTypeFee                           = "fee"
+	OperationTypeFeeRefund                     = "feeRefund"
+	OperationTypeReward                        = "reward"
+	OperationTypeTokenManagement               = "tokenManagement"
 )
+
+func (operationType OperationType) String() string {
+	return string(operationType)
+}
 
 const (
 	// Subtypes for transfers
-	OperationSubtypeTransferNative OperationSubtype = iota
-	OperationSubtypeTransferCustomFungible
-	OperationSubtypeTransferCustomSemiFungible
-	OperationSubtypeTransferCustomNonFungible
+	OperationSubtypeTransferNative             OperationSubtype = "transferNative"
+	OperationSubtypeTransferCustomFungible                      = "transferCustomFungible"
+	OperationSubtypeTransferCustomSemiFungible                  = "transferCustomSemiFungible"
+	OperationSubtypeTransferCustomNonFungible                   = "transferCustomNonFungible"
 
 	// Subtypes for fee
-	OperationSubtypeFeeRegular
-	OperationSubtypeFeeOfInvalidTransaction
+	OperationSubtypeFeeRegular              = "feeRegular"
+	OperationSubtypeFeeOfInvalidTransaction = "feeOfInvalidTransaction"
 
 	// Subtypes for fee refund
-	OperationSubtypeFeeRefundAsReceipt
-	OperationSubtypeFeeRefundAsSmartContractResult
+	OperationSubtypeFeeRefundAsReceipt             = "feeRefundAsReceipt"
+	OperationSubtypeFeeRefundAsSmartContractResult = "feeRefundAsSmartContractResult"
 
 	// Subtypes for rewards
-	OperationSubtypeStakingRewards
-	OperationSubtypeDelegationRewards
-	OperationSubtypeDeveloperRewards
+	OperationSubtypeStakingRewards    = "stakingRewards"
+	OperationSubtypeDelegationRewards = "delegationRewards"
+	OperationSubtypeDeveloperRewards  = "developerRewards"
 
 	// Subtypes for token management operations
-	OperationSubtypeCustomTokenMint
-	OperationSubtypeCustomTokenBurn
-	OperationSubtypeCustomTokenWipe
+	OperationSubtypeCustomTokenMint = "customTokenMint"
+	OperationSubtypeCustomTokenBurn = "customTokenBurn"
+	OperationSubtypeCustomTokenWipe = "customTokenWipe"
 )
+
+func (operationSubtype OperationSubtype) String() string {
+	return string(operationSubtype)
+}
+
+type AmountType string
+
+const (
+	AmountTypeNative             AmountType = "native"
+	AmountTypeCustomFungible                = "customFungible"
+	AmountTypeCustomSemiFungible            = "customSemiFungible"
+	AmountTypeCustomNonFungible             = "customNonFungible"
+)
+
+func (amountType AmountType) String() string {
+	return string(amountType)
+}
+
+type OperationDirection string
+
+const (
+	OperationDirectionCredit OperationDirection = "credit"
+	OperationDirectionDebit  OperationDirection = "debit"
+)
+
+func (direction OperationDirection) String() string {
+	return string(direction)
+}
