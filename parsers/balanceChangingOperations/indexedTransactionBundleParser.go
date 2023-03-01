@@ -63,7 +63,7 @@ func (parser *indexedTransactionBundleParser) parseInvalidTransaction(bundle *In
 	operations = append(operations, Operation{
 		Type:        OperationTypeFee,
 		Subtype:     OperationSubtypeFeeOfInvalidTransaction,
-		Status:      OperationStatusFailure,
+		Status:      OperationStatusSuccess,
 		Address:     bundle.Sender,
 		AmountValue: bundle.Fee,
 		AmountType:  AmountTypeNative,
@@ -103,6 +103,16 @@ func (parser *indexedTransactionBundleParser) parseSmartContractResult(bundle *I
 	operations := make([]Operation, 0)
 
 	if parsers.IsNonZeroAmount(bundle.Value) {
+		operations = append(operations, Operation{
+			Type:        OperationTypeTransfer,
+			Subtype:     OperationSubtypeTransferNative,
+			Status:      OperationStatusSuccess,
+			Address:     bundle.Sender,
+			AmountValue: bundle.Value,
+			AmountType:  AmountTypeNative,
+			Direction:   OperationDirectionDebit,
+		})
+
 		operations = append(operations, Operation{
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
