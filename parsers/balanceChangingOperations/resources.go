@@ -1,6 +1,6 @@
 package balanceChangingOperations
 
-type IndexedTransactionBundle struct {
+type IndexedTransaction struct {
 	Hash               string              `json:"txHash"`
 	Timestamp          uint64              `json:"timestamp"`
 	Round              uint64              `json:"round"`

@@ -3,6 +3,7 @@ package balanceChangingOperations
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"net/http"
 	"testing"
@@ -25,16 +26,30 @@ func TestFoo(t *testing.T) {
 	numTransfers := 1000
 	numBalanceRecords := 2000
 
-	parser, err := NewIndexedTransactionBundleParser(IndexedTransactionBundleParserConfig{})
+	parser, err := NewIndexedTransactionParser(IndexedTransactionParserConfig{})
 	require.Nil(t, err)
 
 	addresses := []string{
-		// Frank
-		"erd1kdl46yctawygtwg2k462307dmz2v55c605737dp3zkxh04sct7asqylhyv",
+		// Alice
+		"erd1qyu5wthldzr8wx5c9ucg8kjagg0jfs53s8nr3zpz3hypefsdd8ssycr6th",
+		// // Bob
+		// "erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx",
+		// // Frank
+		// "erd1kdl46yctawygtwg2k462307dmz2v55c605737dp3zkxh04sct7asqylhyv",
+		// // Grace
+		// "erd1r69gk66fmedhhcg24g2c5kn2f2a5k4kvpr6jfw67dn2lyydd8cfswy6ede",
 	}
 
 	for _, address := range addresses {
+		fmt.Println("### Address:", address)
+
 		transfersDescending := fetchTransfers(address, numTransfers)
+
+		// write json to file
+		jsonBytes, err := json.MarshalIndent(transfersDescending, "", "  ")
+		require.Nil(t, err)
+		err = ioutil.WriteFile("transfers.json", jsonBytes, 0644)
+
 		balanceRecordsDescending := fetchBalanceRecords(address, numBalanceRecords)
 
 		startingRound := decideStartingRound(transfersDescending)
@@ -46,11 +61,12 @@ func TestFoo(t *testing.T) {
 			txHash := transfersDescending[i].Hash
 			round := transfersDescending[i].Round
 
-			if round < startingRound {
+			// SCRs have round 0
+			if round != 0 && round < startingRound {
 				continue
 			}
 
-			operations, err := parser.ParseBundle(transfersDescending[i])
+			operations, err := parser.ParseTransaction(transfersDescending[i])
 			require.Nil(t, err)
 
 			for _, operation := range operations {
@@ -58,13 +74,24 @@ func TestFoo(t *testing.T) {
 					continue
 				}
 
+				if operation.Status != OperationStatusSuccess {
+					continue
+				}
+
 				amount := stringToBigInt(operation.AmountValue)
 
 				if operation.Direction == OperationDirectionCredit {
 					computedBalance.Add(computedBalance, amount)
+					fmt.Println("\t > +", amount)
 				} else {
 					computedBalance.Sub(computedBalance, amount)
+					fmt.Println("\t > -", amount)
 				}
+			}
+
+			if round == 0 {
+				fmt.Println("Round:", round, "computed:", computedBalance, "actual:", "(check above)", "txHash:", txHash, "(maybe SCR)")
+				continue
 			}
 
 			actualBalance := findBalanceAtRound(balanceRecordsDescending, round)
@@ -75,7 +102,7 @@ func TestFoo(t *testing.T) {
 	}
 }
 
-func decideStartingRound(transfersDescending []IndexedTransactionBundle) uint64 {
+func decideStartingRound(transfersDescending []IndexedTransaction) uint64 {
 	desiredRoundsGap := uint64(10)
 	previousRound := transfersDescending[len(transfersDescending)-1].Round
 
@@ -106,9 +133,9 @@ func roundToTimestamp(round uint64) uint64 {
 	return genesisTime + round*roundDuration
 }
 
-func fetchTransfers(address string, numItems int) []IndexedTransactionBundle {
+func fetchTransfers(address string, numItems int) []IndexedTransaction {
 	url := fmt.Sprintf("%s/accounts/%s/transfers?size=%d", apiUrl, address, numItems)
-	var items []IndexedTransactionBundle
+	var items []IndexedTransaction
 	fetchData(url, &items)
 	return items
 }
