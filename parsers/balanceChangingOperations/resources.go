@@ -10,6 +10,7 @@ type IndexedTransaction struct {
 	Receiver           string              `json:"receiver"`
 	Value              string              `json:"value"`
 	Data               []byte              `json:"data,omitempty"`
+	GasPrice           uint64              `json:"gasPrice"`
 	Fee                string              `json:"fee,omitempty"`
 	Status             string              `json:"status"`
 	TransactionReceipt *TransactionReceipt `json:"receipt,omitempty"`

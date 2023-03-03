@@ -58,7 +58,7 @@ func getMagnitudeOfAmount(amount string) string {
 	return strings.Trim(amount, "-")
 }
 
-func multiplyUint64(a uint64, b uint64) *big.Int {
+func MultiplyUint64(a uint64, b uint64) *big.Int {
 	return big.NewInt(0).Mul(big.NewInt(0).SetUint64(a), big.NewInt(0).SetUint64(b))
 }
 

@@ -4,10 +4,12 @@ go 1.18
 
 require (
 	github.com/multiversx/mx-chain-core-go v1.1.33
+	github.com/multiversx/mx-chain-logger-go v1.0.11
 	github.com/stretchr/testify v1.8.1
 )
 
 require (
+	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
