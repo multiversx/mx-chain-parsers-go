@@ -16,6 +16,14 @@ type IndexedTransaction struct {
 	TransactionReceipt *TransactionReceipt `json:"receipt,omitempty"`
 }
 
+func (indexedTransaction IndexedTransaction) isSmartContractResult() bool {
+	return indexedTransaction.Type == TransactionTypeSmartContractResult
+}
+
+func (indexedTransaction IndexedTransaction) isInvalidTransaction() bool {
+	return indexedTransaction.Status == TransactionStatusInvalid
+}
+
 type TransactionReceipt struct {
 	Value           string `json:"value"`
 	Sender          string `json:"sender"`

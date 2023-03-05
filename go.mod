@@ -15,6 +15,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
+	github.com/multiversx/mx-chain-vm-common-go v1.3.37 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect

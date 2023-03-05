@@ -6,74 +6,96 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"path"
+	"sort"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/multiversx/mx-chain-core-go/core/pubkeyConverter"
+	logger "github.com/multiversx/mx-chain-logger-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	genesisTime   = uint64(1648551600)
-	roundDuration = uint64(6)
-	apiUrl        = "https://devnet-api.multiversx.com"
+	genesisTime        = uint64(1648551600)
+	roundDuration      = uint64(6)
+	apiUrl             = "https://devnet-api.multiversx.com"
+	log                = logger.GetOrCreate("balanceChangingOperationsTest")
+	pubKeyConverter, _ = pubkeyConverter.NewBech32PubkeyConverter(32, log)
 )
 
 type balanceRecord struct {
-	Timestamp uint64 `json:"timestamp"`
-	Balance   string `json:"balance"`
+	Timestamp uint64    `json:"timestamp"`
+	Time      time.Time `json:"time"`
+	Balance   string    `json:"balance"`
 }
 
-func TestFoo(t *testing.T) {
+func TestBalanceReconciliation(t *testing.T) {
 	numTransfers := 1000
-	numBalanceRecords := 2000
+	numBalanceRecords := 2500
 
-	parser, err := NewIndexedTransactionParser(IndexedTransactionParserConfig{})
+	parser, err := NewIndexedTransactionParser(IndexedTransactionParserArgs{
+		PubkeyConverter: pubKeyConverter,
+		MinGasLimit:     50000,
+		GasLimitPerByte: 1500,
+	})
 	require.Nil(t, err)
 
 	addresses := []string{
 		// Alice
 		"erd1qyu5wthldzr8wx5c9ucg8kjagg0jfs53s8nr3zpz3hypefsdd8ssycr6th",
-		// // Bob
-		// "erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx",
-		// // Frank
-		// "erd1kdl46yctawygtwg2k462307dmz2v55c605737dp3zkxh04sct7asqylhyv",
-		// // Grace
-		// "erd1r69gk66fmedhhcg24g2c5kn2f2a5k4kvpr6jfw67dn2lyydd8cfswy6ede",
+		// Bob
+		"erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx",
+		// Frank
+		"erd1kdl46yctawygtwg2k462307dmz2v55c605737dp3zkxh04sct7asqylhyv",
+		// Grace
+		"erd1r69gk66fmedhhcg24g2c5kn2f2a5k4kvpr6jfw67dn2lyydd8cfswy6ede",
 	}
 
 	for _, address := range addresses {
-		fmt.Println("### Address:", address)
+		reportBuilder := strings.Builder{}
+		reportFile := path.Join("testdata/output", fmt.Sprintf("report_%s.txt", address))
 
-		transfersDescending := fetchTransfers(address, numTransfers)
+		fmt.Println("Testing address:", address)
 
-		// write json to file
-		jsonBytes, err := json.MarshalIndent(transfersDescending, "", "  ")
-		require.Nil(t, err)
-		err = ioutil.WriteFile("transfers.json", jsonBytes, 0644)
+		transfers := fetchTransfers(address, numTransfers)
+		dumpAsJson(fmt.Sprintf("transfers_%s", address), transfers)
 
-		balanceRecordsDescending := fetchBalanceRecords(address, numBalanceRecords)
+		balanceRecords := fetchBalanceRecords(address, numBalanceRecords)
+		dumpAsJson(fmt.Sprintf("balanceRecords_%s", address), balanceRecords)
 
-		startingRound := decideStartingRound(transfersDescending)
-		startingBalance := findBalanceAtRound(balanceRecordsDescending, startingRound)
+		startingTransfer, startingBalance := decideStartingTransfer(transfers, balanceRecords)
 		computedBalance := big.NewInt(0).Set(startingBalance)
-		fmt.Println("Starting round:", startingRound, "starting balance:", startingBalance)
+		balanceDelta := big.NewInt(0)
 
-		for i := len(transfersDescending) - 1; i > 0; i-- {
-			txHash := transfersDescending[i].Hash
-			round := transfersDescending[i].Round
+		reportBuilder.WriteString(fmt.Sprintf("Starting balance: %s\n", startingBalance))
+		reportBuilder.WriteString("\n")
 
-			// SCRs have round 0
-			if round != 0 && round < startingRound {
-				continue
+		for i := startingTransfer; i < len(transfers); i++ {
+			transfer := transfers[i]
+			txHash := transfer.Hash
+			round := transfer.Round
+			timestamp := transfer.Timestamp
+			time := time.Unix(int64(timestamp), 0).UTC()
+
+			reportBuilder.WriteString("\n")
+			reportBuilder.WriteString(fmt.Sprintf("Round: %d (%v)\n", round, time))
+
+			if transfer.isSmartContractResult() {
+				reportBuilder.WriteString(fmt.Sprintf("Smart Contract Result: %s\n", txHash))
+			} else {
+				reportBuilder.WriteString(fmt.Sprintf("Transaction: %s\n", txHash))
 			}
 
-			operations, err := parser.ParseTransaction(transfersDescending[i])
+			operations, err := parser.ParseTransaction(transfer)
 			require.Nil(t, err)
 
 			for _, operation := range operations {
 				if operation.Address != address {
 					continue
 				}
-
 				if operation.Status != OperationStatusSuccess {
 					continue
 				}
@@ -82,47 +104,62 @@ func TestFoo(t *testing.T) {
 
 				if operation.Direction == OperationDirectionCredit {
 					computedBalance.Add(computedBalance, amount)
-					fmt.Println("\t > +", amount)
+					reportBuilder.WriteString(fmt.Sprintf("\tCREDIT:\t + %s (%s)\n", amount, operation.Type))
 				} else {
 					computedBalance.Sub(computedBalance, amount)
-					fmt.Println("\t > -", amount)
+					reportBuilder.WriteString(fmt.Sprintf("\tDEBIT:\t - %s (%s)\n", amount, operation.Type))
 				}
 			}
 
-			if round == 0 {
-				fmt.Println("Round:", round, "computed:", computedBalance, "actual:", "(check above)", "txHash:", txHash, "(maybe SCR)")
-				continue
+			reportBuilder.WriteString(fmt.Sprintf("\t> Computed balance: %s\n", computedBalance))
+
+			if !transfer.isSmartContractResult() {
+				actualBalance, actualBalanceTime := findBalanceAtRound(balanceRecords, round)
+				balanceDelta = big.NewInt(0).Sub(actualBalance, computedBalance)
+
+				reportBuilder.WriteString(fmt.Sprintf("\t> Actual balance: %s (%v)\n", actualBalance, actualBalanceTime))
+				reportBuilder.WriteString(fmt.Sprintf("\t> Delta: %s\n", balanceDelta))
 			}
-
-			actualBalance := findBalanceAtRound(balanceRecordsDescending, round)
-			delta := big.NewInt(0).Sub(actualBalance, computedBalance)
-
-			fmt.Println("Round:", round, "computed:", computedBalance, "actual:", actualBalance, "delta:", delta, "txHash:", txHash)
 		}
+
+		ioutil.WriteFile(reportFile, []byte(reportBuilder.String()), 0644)
+		assert.True(t, big.NewInt(0).Cmp(balanceDelta) == 0, "balance delta is not zero, check report: %s", reportFile)
 	}
 }
 
-func decideStartingRound(transfersDescending []IndexedTransaction) uint64 {
-	desiredRoundsGap := uint64(10)
-	previousRound := transfersDescending[len(transfersDescending)-1].Round
+func decideStartingTransfer(transfers []IndexedTransaction, balanceRecords []balanceRecord) (int, *big.Int) {
+	desiredGapInSeconds := uint64(60)
 
-	for i := len(transfersDescending) - 1; i > 0; i-- {
-		if transfersDescending[i].Round > previousRound+desiredRoundsGap {
-			return transfersDescending[i].Round - 1
+	for i := 0; i < len(transfers); i++ {
+		transfer := transfers[i]
+
+		for j := 1; j < len(balanceRecords)-1; j++ {
+			balanceRecord := balanceRecords[j]
+
+			if balanceRecord.Timestamp == transfer.Timestamp {
+				previousBalanceChangeIsFarEnough := balanceRecords[j-1].Timestamp < transfer.Timestamp-desiredGapInSeconds
+				nextBalanceChangeIsFarEnough := balanceRecords[j+1].Timestamp > transfer.Timestamp+desiredGapInSeconds
+				balance := stringToBigInt(balanceRecords[j-1].Balance)
+
+				if previousBalanceChangeIsFarEnough && nextBalanceChangeIsFarEnough {
+					return i, balance
+				}
+			}
 		}
-
-		previousRound = transfersDescending[i].Round
 	}
 
-	panic("could not decide on starting round")
+	panic("could not decide on starting transfer")
 }
 
-func findBalanceAtRound(balanceRecordsDescending []balanceRecord, round uint64) *big.Int {
+func findBalanceAtRound(balanceRecords []balanceRecord, round uint64) (*big.Int, time.Time) {
 	timestamp := roundToTimestamp(round)
 
-	for i := 0; i < len(balanceRecordsDescending); i++ {
-		if balanceRecordsDescending[i].Timestamp <= timestamp {
-			return stringToBigInt(balanceRecordsDescending[i].Balance)
+	for i := 0; i < len(balanceRecords); i++ {
+		recordTimestamp := balanceRecords[i].Timestamp
+		recordTime := balanceRecords[i].Time
+
+		if recordTimestamp >= timestamp {
+			return stringToBigInt(balanceRecords[i].Balance), recordTime
 		}
 	}
 
@@ -137,13 +174,43 @@ func fetchTransfers(address string, numItems int) []IndexedTransaction {
 	url := fmt.Sprintf("%s/accounts/%s/transfers?size=%d", apiUrl, address, numItems)
 	var items []IndexedTransaction
 	fetchData(url, &items)
-	return items
+
+	// Sort items by timestamp, ascending
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Timestamp < items[j].Timestamp
+	})
+
+	// Ignore initial SCRs
+	firstRegularTransactionIndex := -1
+
+	for i := 0; i < len(items); i++ {
+		if !items[i].isSmartContractResult() {
+			firstRegularTransactionIndex = i
+			break
+		}
+	}
+
+	if firstRegularTransactionIndex == -1 {
+		panic("no regular transactions found")
+	}
+
+	return items[firstRegularTransactionIndex:]
 }
 
 func fetchBalanceRecords(address string, numItems int) []balanceRecord {
 	url := fmt.Sprintf("%s/accounts/%s/history?size=%d", apiUrl, address, numItems)
 	var items []balanceRecord
 	fetchData(url, &items)
+
+	// Sort items by timestamp, ascending
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Timestamp < items[j].Timestamp
+	})
+
+	for i := 0; i < len(items); i++ {
+		items[i].Time = time.Unix(int64(items[i].Timestamp), 0).UTC()
+	}
+
 	return items
 }
 
@@ -171,4 +238,18 @@ func stringToBigInt(value string) *big.Int {
 	result := big.NewInt(0)
 	_, _ = result.SetString(value, 10)
 	return result
+}
+
+func dumpAsJson(name string, data interface{}) {
+	filepath := path.Join("testdata", "output", fmt.Sprintf("%s.json", name))
+
+	jsonBytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+
+	err = ioutil.WriteFile(filepath, jsonBytes, 0644)
+	if err != nil {
+		panic(err)
+	}
 }

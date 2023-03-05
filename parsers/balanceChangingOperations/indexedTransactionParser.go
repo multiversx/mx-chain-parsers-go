@@ -4,16 +4,20 @@ import (
 	"github.com/multiversx/mx-chain-core-go/core"
 	"github.com/multiversx/mx-chain-core-go/core/check"
 	"github.com/multiversx/mx-chain-parsers-go/parsers"
+	vmcommonParsers "github.com/multiversx/mx-chain-vm-common-go/parsers"
 )
 
 type IndexedTransactionParserArgs struct {
 	PubkeyConverter PubkeyConverter
 	MinGasLimit     uint64
+	GasLimitPerByte uint64
 }
 
 type IndexedTransactionParser struct {
 	pubkeyConverter PubkeyConverter
 	minGasLimit     uint64
+	gasLimitPerByte uint64
+	callArgsParser  CallArgsParser
 }
 
 // NewIndexedTransactionParser creates a new IndexedTransactionParser
@@ -28,6 +32,9 @@ func NewIndexedTransactionParser(args IndexedTransactionParserArgs) (*IndexedTra
 	return &IndexedTransactionParser{
 		pubkeyConverter: args.PubkeyConverter,
 		minGasLimit:     args.MinGasLimit,
+		gasLimitPerByte: args.GasLimitPerByte,
+		// This is not passed as a dependency
+		callArgsParser: vmcommonParsers.NewCallArgsParser(),
 	}, nil
 }
 
@@ -36,10 +43,10 @@ func (parser *IndexedTransactionParser) ParseTransaction(transaction IndexedTran
 	if parser.isStakingRewards(&transaction) {
 		return parser.parseStakingRewardsTransaction(&transaction)
 	}
-	if parser.isInvalidTransaction(&transaction) {
+	if transaction.isInvalidTransaction() {
 		return parser.parseInvalidTransaction(&transaction)
 	}
-	if parser.isSmartContractResult(&transaction) {
+	if transaction.isSmartContractResult() {
 		return parser.parseSmartContractResult(&transaction)
 	}
 
@@ -74,10 +81,6 @@ func (parser *IndexedTransactionParser) parseStakingRewardsTransaction(transacti
 			Direction:   OperationDirectionCredit,
 		},
 	}, nil
-}
-
-func (parser *IndexedTransactionParser) isInvalidTransaction(transaction *IndexedTransaction) bool {
-	return transaction.Status == TransactionStatusInvalid
 }
 
 func (parser *IndexedTransactionParser) parseInvalidTransaction(transaction *IndexedTransaction) ([]Operation, error) {
@@ -116,10 +119,6 @@ func (parser *IndexedTransactionParser) parseInvalidTransaction(transaction *Ind
 	}
 
 	return operations, nil
-}
-
-func (parser *IndexedTransactionParser) isSmartContractResult(transaction *IndexedTransaction) bool {
-	return transaction.Type == TransactionTypeSmartContractResult
 }
 
 func (parser *IndexedTransactionParser) parseSmartContractResult(transaction *IndexedTransaction) ([]Operation, error) {
@@ -189,10 +188,9 @@ func (parser *IndexedTransactionParser) parseRegularTransaction(transaction *Ind
 }
 
 func (parser *IndexedTransactionParser) isSendingValueToNonPayableContract(transaction *IndexedTransaction) (bool, error) {
-	hasData := len(transaction.Data) > 0
 	isStatusFail := transaction.Status == TransactionStatusFail
 	isMistakenlyConsideredRegularTransaction := transaction.Type == TransactionTypeRegular
-	if hasData || !isStatusFail && isMistakenlyConsideredRegularTransaction {
+	if !isStatusFail && isMistakenlyConsideredRegularTransaction {
 		return false, nil
 	}
 
@@ -202,13 +200,23 @@ func (parser *IndexedTransactionParser) isSendingValueToNonPayableContract(trans
 	}
 
 	isReceiverSmartContract := core.IsSmartContractAddress(receiverPubKey)
-	return isReceiverSmartContract, nil
+	if !isReceiverSmartContract {
+		return false, nil
+	}
+
+	_, _, err = parser.callArgsParser.ParseData(string(transaction.Data))
+	if err == nil {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (parser *IndexedTransactionParser) parseSendingValueToNonPayableContract(transaction *IndexedTransaction) ([]Operation, error) {
 	operations := make([]Operation, 0)
 
-	fee := parsers.MultiplyUint64(parser.minGasLimit, transaction.GasPrice)
+	gasLimit := parser.minGasLimit + parser.gasLimitPerByte*uint64(len(transaction.Data))
+	fee := parsers.MultiplyUint64(gasLimit, transaction.GasPrice)
 
 	operations = append(operations, Operation{
 		Type:        OperationTypeFee,
