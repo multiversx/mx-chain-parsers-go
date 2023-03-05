@@ -7,21 +7,21 @@ import (
 	vmcommonParsers "github.com/multiversx/mx-chain-vm-common-go/parsers"
 )
 
-type IndexedTransactionParserArgs struct {
+type IndexedTransferParserArgs struct {
 	PubkeyConverter PubkeyConverter
 	MinGasLimit     uint64
 	GasLimitPerByte uint64
 }
 
-type IndexedTransactionParser struct {
+type IndexedTransferParser struct {
 	pubkeyConverter PubkeyConverter
 	minGasLimit     uint64
 	gasLimitPerByte uint64
 	callArgsParser  CallArgsParser
 }
 
-// NewIndexedTransactionParser creates a new IndexedTransactionParser
-func NewIndexedTransactionParser(args IndexedTransactionParserArgs) (*IndexedTransactionParser, error) {
+// NewIndexedTransferParser creates a new IndexedTransferParser
+func NewIndexedTransferParser(args IndexedTransferParserArgs) (*IndexedTransferParser, error) {
 	if check.IfNil(args.PubkeyConverter) {
 		return nil, errNilPubkeyConverter
 	}
@@ -29,7 +29,7 @@ func NewIndexedTransactionParser(args IndexedTransactionParserArgs) (*IndexedTra
 		return nil, errBadMinGasLimit
 	}
 
-	return &IndexedTransactionParser{
+	return &IndexedTransferParser{
 		pubkeyConverter: args.PubkeyConverter,
 		minGasLimit:     args.MinGasLimit,
 		gasLimitPerByte: args.GasLimitPerByte,
@@ -38,71 +38,71 @@ func NewIndexedTransactionParser(args IndexedTransactionParserArgs) (*IndexedTra
 	}, nil
 }
 
-// ParseTransaction parses a transaction into a list of balance-changing operations
-func (parser *IndexedTransactionParser) ParseTransaction(transaction IndexedTransaction) ([]Operation, error) {
-	if parser.isStakingRewards(&transaction) {
-		return parser.parseStakingRewardsTransaction(&transaction)
+// ParseTransfer parses a transaction into a list of balance-changing operations
+func (parser *IndexedTransferParser) ParseTransfer(transfer IndexedTransfer) ([]Operation, error) {
+	if parser.isStakingRewards(&transfer) {
+		return parser.parseStakingRewards(&transfer)
 	}
-	if transaction.isInvalidTransaction() {
-		return parser.parseInvalidTransaction(&transaction)
+	if transfer.isInvalid() {
+		return parser.parseInvalidTransfer(&transfer)
 	}
-	if transaction.isSmartContractResult() {
-		return parser.parseSmartContractResult(&transaction)
+	if transfer.isSmartContractResult() {
+		return parser.parseSmartContractResult(&transfer)
 	}
 
-	isSendingValueToNonPayableContract, err := parser.isSendingValueToNonPayableContract(&transaction)
+	isSendingValueToNonPayableContract, err := parser.isSendingValueToNonPayableContract(&transfer)
 	if err != nil {
 		return nil, err
 	}
 	if isSendingValueToNonPayableContract {
-		return parser.parseSendingValueToNonPayableContract(&transaction)
+		return parser.parseSendingValueToNonPayableContract(&transfer)
 	}
 
-	return parser.parseRegularTransaction(&transaction)
+	return parser.parseRegularTransfer(&transfer)
 }
 
-func (parser *IndexedTransactionParser) isStakingRewards(transaction *IndexedTransaction) bool {
-	isFromMetachain := transaction.SenderShard == core.MetachainShardId
-	isNonZero := parsers.IsNonZeroAmount(transaction.Value)
-	hasNoData := len(transaction.Data) == 0
+func (parser *IndexedTransferParser) isStakingRewards(transfer *IndexedTransfer) bool {
+	isFromMetachain := transfer.SenderShard == core.MetachainShardId
+	isNonZero := parsers.IsNonZeroAmount(transfer.Value)
+	hasNoData := len(transfer.Data) == 0
 
 	return isFromMetachain && isNonZero && hasNoData
 }
 
-func (parser *IndexedTransactionParser) parseStakingRewardsTransaction(transaction *IndexedTransaction) ([]Operation, error) {
+func (parser *IndexedTransferParser) parseStakingRewards(transfer *IndexedTransfer) ([]Operation, error) {
 	return []Operation{
 		{
 			Type:        OperationTypeReward,
 			Subtype:     OperationSubtypeStakingRewards,
 			Status:      OperationStatusSuccess,
-			Address:     transaction.Receiver,
-			AmountValue: transaction.Value,
+			Address:     transfer.Receiver,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionCredit,
 		},
 	}, nil
 }
 
-func (parser *IndexedTransactionParser) parseInvalidTransaction(transaction *IndexedTransaction) ([]Operation, error) {
+func (parser *IndexedTransferParser) parseInvalidTransfer(transfer *IndexedTransfer) ([]Operation, error) {
 	operations := make([]Operation, 0)
 
 	operations = append(operations, Operation{
 		Type:        OperationTypeFee,
 		Subtype:     OperationSubtypeFeeOfInvalidTransaction,
 		Status:      OperationStatusSuccess,
-		Address:     transaction.Sender,
-		AmountValue: transaction.Fee,
+		Address:     transfer.Sender,
+		AmountValue: transfer.Fee,
 		AmountType:  AmountTypeNative,
 		Direction:   OperationDirectionDebit,
 	})
 
-	if parsers.IsNonZeroAmount(transaction.Value) {
+	if parsers.IsNonZeroAmount(transfer.Value) {
 		operations = append(operations, Operation{
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusFailure,
-			Address:     transaction.Sender,
-			AmountValue: transaction.Value,
+			Address:     transfer.Sender,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionDebit,
 		})
@@ -111,8 +111,8 @@ func (parser *IndexedTransactionParser) parseInvalidTransaction(transaction *Ind
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusFailure,
-			Address:     transaction.Receiver,
-			AmountValue: transaction.Value,
+			Address:     transfer.Receiver,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionCredit,
 		})
@@ -121,16 +121,16 @@ func (parser *IndexedTransactionParser) parseInvalidTransaction(transaction *Ind
 	return operations, nil
 }
 
-func (parser *IndexedTransactionParser) parseSmartContractResult(transaction *IndexedTransaction) ([]Operation, error) {
+func (parser *IndexedTransferParser) parseSmartContractResult(transfer *IndexedTransfer) ([]Operation, error) {
 	operations := make([]Operation, 0)
 
-	if parsers.IsNonZeroAmount(transaction.Value) {
+	if parsers.IsNonZeroAmount(transfer.Value) {
 		operations = append(operations, Operation{
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusSuccess,
-			Address:     transaction.Sender,
-			AmountValue: transaction.Value,
+			Address:     transfer.Sender,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionDebit,
 		})
@@ -139,8 +139,8 @@ func (parser *IndexedTransactionParser) parseSmartContractResult(transaction *In
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusSuccess,
-			Address:     transaction.Receiver,
-			AmountValue: transaction.Value,
+			Address:     transfer.Receiver,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionCredit,
 		})
@@ -149,26 +149,26 @@ func (parser *IndexedTransactionParser) parseSmartContractResult(transaction *In
 	return operations, nil
 }
 
-func (parser *IndexedTransactionParser) parseRegularTransaction(transaction *IndexedTransaction) ([]Operation, error) {
+func (parser *IndexedTransferParser) parseRegularTransfer(transfer *IndexedTransfer) ([]Operation, error) {
 	operations := make([]Operation, 0)
 
 	operations = append(operations, Operation{
 		Type:        OperationTypeFee,
 		Subtype:     OperationSubtypeFeeRegular,
 		Status:      OperationStatusSuccess,
-		Address:     transaction.Sender,
-		AmountValue: transaction.Fee,
+		Address:     transfer.Sender,
+		AmountValue: transfer.Fee,
 		AmountType:  AmountTypeNative,
 		Direction:   OperationDirectionDebit,
 	})
 
-	if parsers.IsNonZeroAmount(transaction.Value) {
+	if parsers.IsNonZeroAmount(transfer.Value) {
 		operations = append(operations, Operation{
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusSuccess,
-			Address:     transaction.Sender,
-			AmountValue: transaction.Value,
+			Address:     transfer.Sender,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionDebit,
 		})
@@ -177,8 +177,8 @@ func (parser *IndexedTransactionParser) parseRegularTransaction(transaction *Ind
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusSuccess,
-			Address:     transaction.Receiver,
-			AmountValue: transaction.Value,
+			Address:     transfer.Receiver,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionCredit,
 		})
@@ -187,14 +187,14 @@ func (parser *IndexedTransactionParser) parseRegularTransaction(transaction *Ind
 	return operations, nil
 }
 
-func (parser *IndexedTransactionParser) isSendingValueToNonPayableContract(transaction *IndexedTransaction) (bool, error) {
-	isStatusFail := transaction.Status == TransactionStatusFail
-	isMistakenlyConsideredRegularTransaction := transaction.Type == TransactionTypeRegular
+func (parser *IndexedTransferParser) isSendingValueToNonPayableContract(transfer *IndexedTransfer) (bool, error) {
+	isStatusFail := transfer.Status == TransferStatusFail
+	isMistakenlyConsideredRegularTransaction := transfer.Type == TransferTypeRegular
 	if !isStatusFail && isMistakenlyConsideredRegularTransaction {
 		return false, nil
 	}
 
-	receiverPubKey, err := parser.pubkeyConverter.Decode(transaction.Receiver)
+	receiverPubKey, err := parser.pubkeyConverter.Decode(transfer.Receiver)
 	if err != nil {
 		return false, err
 	}
@@ -204,7 +204,7 @@ func (parser *IndexedTransactionParser) isSendingValueToNonPayableContract(trans
 		return false, nil
 	}
 
-	_, _, err = parser.callArgsParser.ParseData(string(transaction.Data))
+	_, _, err = parser.callArgsParser.ParseData(string(transfer.Data))
 	if err == nil {
 		return false, nil
 	}
@@ -212,29 +212,29 @@ func (parser *IndexedTransactionParser) isSendingValueToNonPayableContract(trans
 	return true, nil
 }
 
-func (parser *IndexedTransactionParser) parseSendingValueToNonPayableContract(transaction *IndexedTransaction) ([]Operation, error) {
+func (parser *IndexedTransferParser) parseSendingValueToNonPayableContract(transfer *IndexedTransfer) ([]Operation, error) {
 	operations := make([]Operation, 0)
 
-	gasLimit := parser.minGasLimit + parser.gasLimitPerByte*uint64(len(transaction.Data))
-	fee := parsers.MultiplyUint64(gasLimit, transaction.GasPrice)
+	gasLimit := parser.minGasLimit + parser.gasLimitPerByte*uint64(len(transfer.Data))
+	fee := parsers.MultiplyUint64(gasLimit, transfer.GasPrice)
 
 	operations = append(operations, Operation{
 		Type:        OperationTypeFee,
 		Subtype:     OperationSubtypeFeeOfInvalidTransaction,
 		Status:      OperationStatusSuccess,
-		Address:     transaction.Sender,
+		Address:     transfer.Sender,
 		AmountValue: fee.String(),
 		AmountType:  AmountTypeNative,
 		Direction:   OperationDirectionDebit,
 	})
 
-	if parsers.IsNonZeroAmount(transaction.Value) {
+	if parsers.IsNonZeroAmount(transfer.Value) {
 		operations = append(operations, Operation{
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusFailure,
-			Address:     transaction.Sender,
-			AmountValue: transaction.Value,
+			Address:     transfer.Sender,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionDebit,
 		})
@@ -243,8 +243,8 @@ func (parser *IndexedTransactionParser) parseSendingValueToNonPayableContract(tr
 			Type:        OperationTypeTransfer,
 			Subtype:     OperationSubtypeTransferNative,
 			Status:      OperationStatusFailure,
-			Address:     transaction.Receiver,
-			AmountValue: transaction.Value,
+			Address:     transfer.Receiver,
+			AmountValue: transfer.Value,
 			AmountType:  AmountTypeNative,
 			Direction:   OperationDirectionCredit,
 		})

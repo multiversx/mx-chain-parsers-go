@@ -36,7 +36,7 @@ func TestBalanceReconciliation(t *testing.T) {
 	numTransfers := 1000
 	numBalanceRecords := 2500
 
-	parser, err := NewIndexedTransactionParser(IndexedTransactionParserArgs{
+	parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
 		PubkeyConverter: pubKeyConverter,
 		MinGasLimit:     50000,
 		GasLimitPerByte: 1500,
@@ -86,10 +86,10 @@ func TestBalanceReconciliation(t *testing.T) {
 			if transfer.isSmartContractResult() {
 				reportBuilder.WriteString(fmt.Sprintf("Smart Contract Result: %s\n", txHash))
 			} else {
-				reportBuilder.WriteString(fmt.Sprintf("Transaction: %s\n", txHash))
+				reportBuilder.WriteString(fmt.Sprintf("Transfer: %s\n", txHash))
 			}
 
-			operations, err := parser.ParseTransaction(transfer)
+			operations, err := parser.ParseTransfer(transfer)
 			require.Nil(t, err)
 
 			for _, operation := range operations {
@@ -127,7 +127,7 @@ func TestBalanceReconciliation(t *testing.T) {
 	}
 }
 
-func decideStartingTransfer(transfers []IndexedTransaction, balanceRecords []balanceRecord) (int, *big.Int) {
+func decideStartingTransfer(transfers []IndexedTransfer, balanceRecords []balanceRecord) (int, *big.Int) {
 	desiredGapInSeconds := uint64(60)
 
 	for i := 0; i < len(transfers); i++ {
@@ -170,9 +170,9 @@ func roundToTimestamp(round uint64) uint64 {
 	return genesisTime + round*roundDuration
 }
 
-func fetchTransfers(address string, numItems int) []IndexedTransaction {
+func fetchTransfers(address string, numItems int) []IndexedTransfer {
 	url := fmt.Sprintf("%s/accounts/%s/transfers?size=%d", apiUrl, address, numItems)
-	var items []IndexedTransaction
+	var items []IndexedTransfer
 	fetchData(url, &items)
 
 	// Sort items by timestamp, ascending
@@ -181,20 +181,20 @@ func fetchTransfers(address string, numItems int) []IndexedTransaction {
 	})
 
 	// Ignore initial SCRs
-	firstRegularTransactionIndex := -1
+	firstRegularTransferIndex := -1
 
 	for i := 0; i < len(items); i++ {
 		if !items[i].isSmartContractResult() {
-			firstRegularTransactionIndex = i
+			firstRegularTransferIndex = i
 			break
 		}
 	}
 
-	if firstRegularTransactionIndex == -1 {
-		panic("no regular transactions found")
+	if firstRegularTransferIndex == -1 {
+		panic("no regular transfers found")
 	}
 
-	return items[firstRegularTransactionIndex:]
+	return items[firstRegularTransferIndex:]
 }
 
 func fetchBalanceRecords(address string, numItems int) []balanceRecord {

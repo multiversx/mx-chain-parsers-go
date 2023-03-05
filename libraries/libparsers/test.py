@@ -11,22 +11,22 @@ class LibParsersFacade:
     _library: Optional[ctypes.CDLL] = None
 
     def __init__(self) -> None:
-        self.indexed_transaction_parser_handle = self._new_indexed_transaction_parser({
+        self.indexed_transfer_parser_handle = self._new_indexed_transfer_parser({
         })
 
-    def _new_indexed_transaction_parser(self, config: Any) -> int:
-        func = self._get_library().newIndexedTransactionParser
+    def _new_indexed_transfer_parser(self, config: Any) -> int:
+        func = self._get_library().newIndexedTransferParser
 
         input_json = json.dumps(config).encode()
         output = func(input_json)
         output_typed = ctypes.c_int(output)
         return int(output_typed.value)
 
-    def parse_indexed_transaction(self, transaction: Any) -> Dict[str, Any]:
-        func = self._get_library().parseIndexedTransaction
+    def parse_indexed_transfer(self, transfer: Any) -> Dict[str, Any]:
+        func = self._get_library().parseIndexedTransfer
 
-        input_json = json.dumps(transaction).encode()
-        output = func(self.indexed_transaction_parser_handle, input_json)
+        input_json = json.dumps(transfer).encode()
+        output = func(self.indexed_transfer_parser_handle, input_json)
         output_typed = ctypes.string_at(output)
         output_json = output_typed.decode()
         output_dict = json.loads(output_json)
@@ -47,11 +47,11 @@ class LibParsersFacade:
 
         lib = ctypes.CDLL(str(lib_path), winmode=0)
 
-        lib.newIndexedTransactionParser.argtypes = [ctypes.c_char_p]
-        lib.newIndexedTransactionParser.restype = ctypes.c_int
+        lib.newIndexedTransferParser.argtypes = [ctypes.c_char_p]
+        lib.newIndexedTransferParser.restype = ctypes.c_int
 
-        lib.parseIndexedTransaction.argtypes = [ctypes.c_int, ctypes.c_char_p]
-        lib.parseIndexedTransaction.restype = ctypes.c_char_p
+        lib.parseIndexedTransfer.argtypes = [ctypes.c_int, ctypes.c_char_p]
+        lib.parseIndexedTransfer.restype = ctypes.c_char_p
 
         print(f"Loaded library: {lib_path}")
 
@@ -78,8 +78,8 @@ def main():
     response = urllib.request.urlopen(request)
     data = json.loads(response.read())
 
-    for transaction in data:
-        parsed = facade.parse_indexed_transaction(transaction)
+    for transfer in data:
+        parsed = facade.parse_indexed_transfer(transfer)
         pprint.pprint(parsed)
 
 

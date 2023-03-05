@@ -12,26 +12,26 @@ import (
 )
 
 var (
-	parsers = make([]balanceChangingOperations.IndexedTransactionParser, 0)
+	parsers = make([]balanceChangingOperations.IndexedTransferParser, 0)
 )
 
 func main() {
 }
 
-//export newIndexedTransactionParser
-func newIndexedTransactionParser(configJson *C.char) int {
+//export newIndexedTransferParser
+func newIndexedTransferParser(configJson *C.char) int {
 	configJsonString := C.GoString(configJson)
 
-	var config balanceChangingOperations.IndexedTransactionParserConfig
+	var config balanceChangingOperations.IndexedTransferParserArgs
 	err := json.Unmarshal([]byte(configJsonString), &config)
 	if err != nil {
-		log.Println("newIndexedTransactionParser(): cannot unmarshal config", err)
+		log.Println("newIndexedTransferParser(): cannot unmarshal config", err)
 		return -1
 	}
 
-	parser, err := balanceChangingOperations.NewIndexedTransactionParser(config)
+	parser, err := balanceChangingOperations.NewIndexedTransferParser(config)
 	if err != nil {
-		log.Println("newIndexedTransactionParser(): cannot create parser", err)
+		log.Println("newIndexedTransferParser(): cannot create parser", err)
 		return -1
 	}
 
@@ -39,26 +39,26 @@ func newIndexedTransactionParser(configJson *C.char) int {
 	return len(parsers) - 1
 }
 
-//export parseIndexedTransaction
-func parseIndexedTransaction(parserHandle int, transactionJson *C.char) *C.char {
-	transactionJsonString := C.GoString(transactionJson)
+//export parseIndexedTransfer
+func parseIndexedTransfer(parserHandle int, transferJson *C.char) *C.char {
+	transferJsonString := C.GoString(transferJson)
 
-	var transaction balanceChangingOperations.IndexedTransaction
-	err := json.Unmarshal([]byte(transactionJsonString), &transaction)
+	var transfer balanceChangingOperations.IndexedTransfer
+	err := json.Unmarshal([]byte(transferJsonString), &transfer)
 	if err != nil {
-		log.Println("parseTransaction(): cannot unmarshal transaction", err)
+		log.Println("parseIndexedTransfer(): cannot unmarshal transfer", err)
 		return C.CString("")
 	}
 
-	operations, err := parsers[parserHandle].ParseTransaction(transaction)
+	operations, err := parsers[parserHandle].ParseTransfer(transfer)
 	if err != nil {
-		log.Println("parseTransaction(): cannot parse transaction", err)
+		log.Println("parseIndexedTransfer(): cannot parse transfer", err)
 		return C.CString("")
 	}
 
 	operationsJson, err := json.Marshal(operations)
 	if err != nil {
-		log.Println("parseTransaction(): cannot marshal operations", err)
+		log.Println("parseIndexedTransfer(): cannot marshal operations", err)
 		return C.CString("")
 	}
 
