@@ -15,6 +15,7 @@ import (
 
 	"github.com/multiversx/mx-chain-core-go/core/pubkeyConverter"
 	logger "github.com/multiversx/mx-chain-logger-go"
+	vmcommonParsers "github.com/multiversx/mx-chain-vm-common-go/parsers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,83 @@ type balanceRecord struct {
 	Balance   string    `json:"balance"`
 }
 
+func TestNewIndexedTransferParser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil pubkey converter", func(t *testing.T) {
+		t.Parallel()
+
+		parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
+			PubkeyConverter: nil,
+			CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
+			MinGasLimit:     50000,
+			GasLimitPerByte: 1500,
+		})
+
+		assert.Nil(t, parser)
+		assert.Equal(t, errNilPubkeyConverter, err)
+	})
+
+	t.Run("nil call args parser", func(t *testing.T) {
+		t.Parallel()
+
+		parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
+			PubkeyConverter: pubKeyConverter,
+			CallArgsParser:  nil,
+			MinGasLimit:     50000,
+			GasLimitPerByte: 1500,
+		})
+
+		assert.Nil(t, parser)
+		assert.Equal(t, errNilCallArgsParser, err)
+	})
+
+	t.Run("bad min gas limit", func(t *testing.T) {
+		t.Parallel()
+
+		parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
+			PubkeyConverter: pubKeyConverter,
+			CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
+			MinGasLimit:     0,
+			GasLimitPerByte: 1500,
+		})
+
+		assert.Nil(t, parser)
+		assert.Equal(t, errBadMinGasLimit, err)
+	})
+
+	t.Run("bad gas limit per byte", func(t *testing.T) {
+		t.Parallel()
+
+		parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
+			PubkeyConverter: pubKeyConverter,
+			CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
+			MinGasLimit:     50000,
+			GasLimitPerByte: 0,
+		})
+
+		assert.Nil(t, parser)
+		assert.Equal(t, errBadGasLimitPerByte, err)
+	})
+
+	t.Run("should work", func(t *testing.T) {
+		t.Parallel()
+
+		parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
+			PubkeyConverter: pubKeyConverter,
+			CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
+			MinGasLimit:     50000,
+			GasLimitPerByte: 1500,
+		})
+
+		assert.Nil(t, err)
+		assert.NotNil(t, parser)
+	})
+}
+
 func TestBalanceReconciliation(t *testing.T) {
+	t.Skip("This test is skipped because it requires a connection to the API.")
+
 	numTransfers := 1000
 	numBalanceRecords := 2500
 
@@ -42,6 +119,7 @@ func TestBalanceReconciliation(t *testing.T) {
 
 	parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
 		PubkeyConverter: pubKeyConverter,
+		CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
 		MinGasLimit:     50000,
 		GasLimitPerByte: 1500,
 	})

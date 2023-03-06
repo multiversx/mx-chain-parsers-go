@@ -9,6 +9,7 @@ import (
 	"github.com/multiversx/mx-chain-core-go/core/pubkeyConverter"
 	logger "github.com/multiversx/mx-chain-logger-go"
 	"github.com/multiversx/mx-chain-parsers-go/parsers/balanceChangingOperations"
+	vmcommonParsers "github.com/multiversx/mx-chain-vm-common-go/parsers"
 )
 
 var (
@@ -44,6 +45,7 @@ func newIndexedTransferParser(configJson *C.char) int {
 
 	parser, err := balanceChangingOperations.NewIndexedTransferParser(balanceChangingOperations.IndexedTransferParserArgs{
 		PubkeyConverter: pubKeyConverter,
+		CallArgsParser:  vmcommonParsers.NewCallArgsParser(),
 		MinGasLimit:     config.MinGasLimit,
 		GasLimitPerByte: config.GasLimitPerByte,
 	})

@@ -4,20 +4,20 @@ import (
 	"github.com/multiversx/mx-chain-core-go/core"
 	"github.com/multiversx/mx-chain-core-go/core/check"
 	"github.com/multiversx/mx-chain-parsers-go/parsers"
-	vmcommonParsers "github.com/multiversx/mx-chain-vm-common-go/parsers"
 )
 
 type IndexedTransferParserArgs struct {
 	PubkeyConverter PubkeyConverter
+	CallArgsParser  CallArgsParser
 	MinGasLimit     uint64
 	GasLimitPerByte uint64
 }
 
 type IndexedTransferParser struct {
 	pubkeyConverter PubkeyConverter
+	callArgsParser  CallArgsParser
 	minGasLimit     uint64
 	gasLimitPerByte uint64
-	callArgsParser  CallArgsParser
 }
 
 // NewIndexedTransferParser creates a new IndexedTransferParser
@@ -25,16 +25,21 @@ func NewIndexedTransferParser(args IndexedTransferParserArgs) (*IndexedTransferP
 	if check.IfNil(args.PubkeyConverter) {
 		return nil, errNilPubkeyConverter
 	}
+	if check.IfNil(args.CallArgsParser) {
+		return nil, errNilCallArgsParser
+	}
 	if args.MinGasLimit == 0 {
 		return nil, errBadMinGasLimit
+	}
+	if args.GasLimitPerByte == 0 {
+		return nil, errBadGasLimitPerByte
 	}
 
 	return &IndexedTransferParser{
 		pubkeyConverter: args.PubkeyConverter,
+		callArgsParser:  args.CallArgsParser,
 		minGasLimit:     args.MinGasLimit,
 		gasLimitPerByte: args.GasLimitPerByte,
-		// This is not passed as a dependency
-		callArgsParser: vmcommonParsers.NewCallArgsParser(),
 	}, nil
 }
 
