@@ -1,0 +1,19 @@
+{
+    "txHash": "43cd4426ce64ac249a661d65d0fcbac332cfc53c1066aa891b1914c7d755a93e",
+    "gasLimit": 50000,
+    "gasPrice": 1000000000,
+    "gasUsed": 50000,
+    "miniBlockHash": "abee6b2e2d5674e441caef0ead26ea2a5aea53898d743d8a98188a70229a1bc4",
+    "nonce": 601,
+    "receiver": "erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx",
+    "receiverShard": 0,
+    "round": 879113,
+    "sender": "erd1qyu5wthldzr8wx5c9ucg8kjagg0jfs53s8nr3zpz3hypefsdd8ssycr6th",
+    "senderShard": 1,
+    "signature": "bbd292e65e5fa607dbc446d6936b5ea4920afb5002e43df2e4efafb7d7b0ebcb750c38cb687d06ece4473d14ef6f7be98ca7497195128e8ebabebab517dd0308",
+    "status": "success",
+    "value": "1000000000000000000",
+    "fee": "50000000000000",
+    "timestamp": 1677517878,
+    "price": 40.87
+}
