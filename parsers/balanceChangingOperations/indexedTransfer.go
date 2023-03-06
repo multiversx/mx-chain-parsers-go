@@ -16,12 +16,12 @@ type IndexedTransfer struct {
 	TransactionReceipt *TransactionReceipt `json:"receipt,omitempty"`
 }
 
-func (indexedTransfer IndexedTransfer) isSmartContractResult() bool {
-	return indexedTransfer.Type == TransferTypeSmartContractResult
+func (transfer IndexedTransfer) isSmartContractResult() bool {
+	return transfer.Type == TransferTypeSmartContractResult
 }
 
-func (indexedTransfer IndexedTransfer) isInvalid() bool {
-	return indexedTransfer.Status == TransferStatusInvalid
+func (transfer IndexedTransfer) isInvalid() bool {
+	return transfer.Status == TransferStatusInvalid
 }
 
 type TransactionReceipt struct {

@@ -12,6 +12,9 @@ class LibParsersFacade:
 
     def __init__(self) -> None:
         self.indexed_transfer_parser_handle = self._new_indexed_transfer_parser({
+            "minGasLimit": 50000,
+            "gasLimitPerByte": 1500,
+            "pubkeyLength": 32,
         })
 
     def _new_indexed_transfer_parser(self, config: Any) -> int:

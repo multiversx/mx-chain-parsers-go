@@ -6,14 +6,21 @@ import (
 import (
 	"encoding/json"
 
-	"log"
-
+	"github.com/multiversx/mx-chain-core-go/core/pubkeyConverter"
+	logger "github.com/multiversx/mx-chain-logger-go"
 	"github.com/multiversx/mx-chain-parsers-go/parsers/balanceChangingOperations"
 )
 
 var (
 	parsers = make([]balanceChangingOperations.IndexedTransferParser, 0)
+	log     = logger.GetOrCreate("libraries/libparsers")
 )
+
+type indexedTransferConfig struct {
+	MinGasLimit     uint64 `json:"minGasLimit"`
+	GasLimitPerByte uint64 `json:"gasLimitPerByte"`
+	PubkeyLength    int    `json:"pubkeyLength"`
+}
 
 func main() {
 }
@@ -22,16 +29,26 @@ func main() {
 func newIndexedTransferParser(configJson *C.char) int {
 	configJsonString := C.GoString(configJson)
 
-	var config balanceChangingOperations.IndexedTransferParserArgs
+	var config indexedTransferConfig
 	err := json.Unmarshal([]byte(configJsonString), &config)
 	if err != nil {
-		log.Println("newIndexedTransferParser(): cannot unmarshal config", err)
+		log.Error("newIndexedTransferParser(): cannot unmarshal config", err)
 		return -1
 	}
 
-	parser, err := balanceChangingOperations.NewIndexedTransferParser(config)
+	pubKeyConverter, err := pubkeyConverter.NewBech32PubkeyConverter(config.PubkeyLength, log)
 	if err != nil {
-		log.Println("newIndexedTransferParser(): cannot create parser", err)
+		log.Error("newIndexedTransferParser(): cannot create pubkey converter", err)
+		return -1
+	}
+
+	parser, err := balanceChangingOperations.NewIndexedTransferParser(balanceChangingOperations.IndexedTransferParserArgs{
+		PubkeyConverter: pubKeyConverter,
+		MinGasLimit:     config.MinGasLimit,
+		GasLimitPerByte: config.GasLimitPerByte,
+	})
+	if err != nil {
+		log.Error("newIndexedTransferParser(): cannot create parser", err)
 		return -1
 	}
 
@@ -46,19 +63,19 @@ func parseIndexedTransfer(parserHandle int, transferJson *C.char) *C.char {
 	var transfer balanceChangingOperations.IndexedTransfer
 	err := json.Unmarshal([]byte(transferJsonString), &transfer)
 	if err != nil {
-		log.Println("parseIndexedTransfer(): cannot unmarshal transfer", err)
+		log.Error("parseIndexedTransfer(): cannot unmarshal transfer", err)
 		return C.CString("")
 	}
 
 	operations, err := parsers[parserHandle].ParseTransfer(transfer)
 	if err != nil {
-		log.Println("parseIndexedTransfer(): cannot parse transfer", err)
+		log.Error("parseIndexedTransfer(): cannot parse transfer", err)
 		return C.CString("")
 	}
 
 	operationsJson, err := json.Marshal(operations)
 	if err != nil {
-		log.Println("parseIndexedTransfer(): cannot marshal operations", err)
+		log.Error("parseIndexedTransfer(): cannot marshal operations", err)
 		return C.CString("")
 	}
 

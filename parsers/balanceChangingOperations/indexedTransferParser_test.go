@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -19,11 +20,12 @@ import (
 )
 
 var (
-	genesisTime        = uint64(1648551600)
-	roundDuration      = uint64(6)
-	apiUrl             = "https://devnet-api.multiversx.com"
-	log                = logger.GetOrCreate("balanceChangingOperationsTest")
-	pubKeyConverter, _ = pubkeyConverter.NewBech32PubkeyConverter(32, log)
+	genesisTime                    = uint64(1648551600)
+	roundDuration                  = uint64(6)
+	apiUrl                         = "https://devnet-api.multiversx.com"
+	log                            = logger.GetOrCreate("balanceChangingOperationsTest")
+	pubKeyConverter, _             = pubkeyConverter.NewBech32PubkeyConverter(32, log)
+	outputDirIndexedTransferParser = path.Join("testdata", "output", "indexedTransferParser")
 )
 
 type balanceRecord struct {
@@ -35,6 +37,8 @@ type balanceRecord struct {
 func TestBalanceReconciliation(t *testing.T) {
 	numTransfers := 1000
 	numBalanceRecords := 2500
+
+	_ = os.MkdirAll(outputDirIndexedTransferParser, os.ModePerm)
 
 	parser, err := NewIndexedTransferParser(IndexedTransferParserArgs{
 		PubkeyConverter: pubKeyConverter,
@@ -56,7 +60,7 @@ func TestBalanceReconciliation(t *testing.T) {
 
 	for _, address := range addresses {
 		reportBuilder := strings.Builder{}
-		reportFile := path.Join("testdata/output", fmt.Sprintf("report_%s.txt", address))
+		reportFile := path.Join(outputDirIndexedTransferParser, fmt.Sprintf("report_%s.txt", address))
 
 		fmt.Println("Testing address:", address)
 
@@ -241,7 +245,7 @@ func stringToBigInt(value string) *big.Int {
 }
 
 func dumpAsJson(name string, data interface{}) {
-	filepath := path.Join("testdata", "output", fmt.Sprintf("%s.json", name))
+	filepath := path.Join(outputDirIndexedTransferParser, fmt.Sprintf("%s.json", name))
 
 	jsonBytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
